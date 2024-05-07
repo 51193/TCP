@@ -29,6 +29,19 @@ namespace TCP
             var SrcPort = config["SrcPort"];
             var DestPort = config["DestPort"];
 
+            Random ran = new Random();
+            SrcPort = Convert.ToString(ran.Next(10000, 65535));
+
+
+            string fileContent = $"SrcMAC: {SrcMAC}\n" +
+                $"DestMAC: {DestMAC}\n" +
+                $"SrcIP: {SrcIP}\n" +
+                $"DestIP: {DestIP}\n" +
+                $"SrcPort: {SrcPort}\n" +
+                $"DestPort: {DestPort}\n";
+
+            File.WriteAllText(filePath, fileContent);
+
             ethernetHeader = new(SrcMAC, DestMAC, 0x0800);
             ipHeader = new(SrcIP, DestIP);
             tcpHeader = new(Convert.ToUInt16(SrcPort), Convert.ToUInt16(DestPort));

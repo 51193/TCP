@@ -42,6 +42,41 @@ namespace TCP
 
                     if (tcpList != null && tcpList.ContainsKey(identifier) && tcpList[identifier].state != TCP_STATE.CLOSE)
                     {
+                        string fileContent;
+                        string fileName;
+                        if(tcpList[identifier].tcpPacket.ipHeader.GetSrcAddr() == ipHeader.GetDestAddr())
+                        {
+
+                            fileContent = $"Received Packet Details:\n" +
+                                  $"Source IP: {ipHeader.GetSrcAddr()}, Port: {identifier.Port_1}\n" +
+                                  $"Destination IP: {ipHeader.GetDestAddr()}, Port: {identifier.Port_2}\n" +
+                                  $"TCP Flags: {tcpHeader.Flags}\n" +
+                                  $"Sequence Number: {tcpHeader.GetSeqNumber()}\n" +
+                                  $"Acknowledgment Number: {tcpHeader.GetAckNumber()}\n";
+
+                            fileName = $"Received_{tcpHeader.GetAckNumber()}_{tcpHeader.GetSeqNumber()}.txt";
+
+                            if (payload != null)
+                            {
+                                fileContent += $"Payload Length: {payload.Length}\n";
+                            }
+
+                            File.WriteAllText(fileName, fileContent);
+                        }
+                        else
+                        {
+
+                            fileContent = $"Sent Packet Details:\n" +
+                                      $"Source IP: {ipHeader.GetSrcAddr()}, Port: {tcpHeader.GetSrcPort()}\n" +
+                                      $"Destination IP: {ipHeader.GetDestAddr()}, Port: {tcpHeader.GetDestPort()}\n" +
+                                      $"TCP Flags: {tcpHeader.Flags}\n" +
+                                      $"Sequence Number: {tcpHeader.GetSeqNumber()}\n";
+
+                            fileName = $"Send_{tcpHeader.GetSeqNumber()}_{tcpHeader.GetAckNumber()}.txt";
+
+                            File.WriteAllText(fileName, fileContent);
+                        }
+
                         webDevice.RecordPacket(packet.GetPacket());
                         tcpController.ConnectionStateMove(identifier, ipHeader, tcpHeader, payload);
                     }

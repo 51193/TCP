@@ -41,7 +41,8 @@ namespace TCP
                 TCP tcp = new();
                 tcp.SetHeaderFromFile(filename);
                 //tcp.SetPayloadFromFile("payload.txt");
-                tcp.tcpHeader.SetSeqNumber(99999999);
+                Random ran = new Random();
+                tcp.tcpHeader.SetSeqNumber((uint)ran.Next(10000, 9999999));
                 tcp.tcpHeader.SetFlag(TCP_FLAG.SYN);
                 tcp.Pack();
                 tcpList.Add(new TCPIdentifier(tcp), new TCPControlBlock { tcpPacket = tcp, state = TCP_STATE.SYN_SENT });
@@ -110,33 +111,26 @@ namespace TCP
             return httpRequest;
         }
 
+        static string ExtractHtmlContent(string httpResponse)
+        {
+            // 查找空行的索引，HTML内容紧随其后
+            int startIndex = httpResponse.IndexOf("\r\n\r\n");
+            if (startIndex != -1)
+            {
+                // 返回从空行后开始的所有内容
+                return httpResponse.Substring(startIndex + 4); // 加4是为了跳过两个回车换行符
+            }
+            return "No HTML content found.";
+        }
 
         public void ConnectionStateMove(TCPIdentifier tcpIdentifier, IPHeader ipHeader, TCPHeader tcpHeader, byte[]? payload = null)
         {
             if (tcpList != null)
             {
                 var tcpCB = tcpList[tcpIdentifier];
-                string fileName;
-                string fileContent;
 
                 if (tcpList[tcpIdentifier].tcpPacket.ipHeader.GetSrcAddr() == ipHeader.GetDestAddr())
                 {
-                    fileContent = $"Received Packet Details:\n" +
-                          $"Source IP: {ipHeader.GetSrcAddr()}, Port: {tcpIdentifier.Port_1}\n" +
-                          $"Destination IP: {ipHeader.GetDestAddr()}, Port: {tcpIdentifier.Port_2}\n" +
-                          $"TCP Flags: {tcpHeader.Flags}\n" +
-                          $"Sequence Number: {tcpHeader.GetSeqNumber()}\n" +
-                          $"Acknowledgment Number: {tcpHeader.GetAckNumber()}\n";
-
-                    fileName = $"Received_{tcpHeader.GetAckNumber()}_{tcpHeader.GetSeqNumber()}.txt";
-
-                    if (payload != null)
-                    {
-                        fileContent += $"Payload Length: {payload.Length}\n";
-                    }
-
-                    File.WriteAllText(fileName, fileContent);
-
                     switch (tcpCB.state)
                     {
                         case TCP_STATE.SYN_SENT:
@@ -172,8 +166,9 @@ namespace TCP
                                 tcpCB.tcpPacket.Pack();
                                 tcpCB.tcpPacket.SendPacket();
 
-                                string filePath = $"ReceivedData_{tcpIdentifier.IPAddress_1}_{tcpIdentifier.Port_1}.bin";
-                                File.WriteAllBytes(filePath, payload);
+                                string filePath = $"ReceivedData_{tcpIdentifier.IPAddress_1}_{tcpIdentifier.Port_1}.html";
+                                string httpResponse = Encoding.UTF8.GetString(payload);
+                                File.WriteAllBytes(filePath, Encoding.UTF8.GetBytes(ExtractHtmlContent(httpResponse)));
                                 Console.WriteLine($"Data is saved in {filePath}.");
                                 tcpList[tcpIdentifier] = tcpCB;
                             }
@@ -195,6 +190,7 @@ namespace TCP
                             {
                                 Console.WriteLine("FIN-ACK Packet received, ACK number: " + tcpHeader.GetAckNumber());
                                 tcpCB.tcpPacket.tcpHeader.ResetFlag();
+                                tcpCB.tcpPacket.tcpHeader.SetFlag(TCP_FLAG.FIN);
                                 tcpCB.tcpPacket.tcpHeader.SetFlag(TCP_FLAG.ACK);
                                 tcpCB.tcpPacket.tcpHeader.SetSeqNumber(tcpHeader.GetAckNumber());
                                 tcpCB.tcpPacket.tcpHeader.SetAckNumber(tcpHeader.GetSeqNumber() + (uint)1);
@@ -235,16 +231,6 @@ namespace TCP
                 else
                 {
                     //此处是发出去的包
-                    fileContent = $"Sent Packet Details:\n" +
-                              $"Source IP: {ipHeader.GetSrcAddr()}, Port: {tcpHeader.GetSrcPort()}\n" +
-                              $"Destination IP: {ipHeader.GetDestAddr()}, Port: {tcpHeader.GetDestPort()}\n" +
-                              $"TCP Flags: {tcpHeader.Flags}\n" +
-                              $"Sequence Number: {tcpHeader.GetSeqNumber()}\n";
-
-                    fileName = $"Send_{tcpHeader.GetSeqNumber()}_{tcpHeader.GetAckNumber()}.txt";
-
-                    File.WriteAllText(fileName, fileContent);
-
                     switch (tcpHeader.Flags)
                     {
                         case (byte)TCP_FLAG.PSH | (byte)TCP_FLAG.ACK:
@@ -264,6 +250,10 @@ namespace TCP
                                 tcpList[tcpIdentifier] = tcpCB;
                                 Console.WriteLine($"Connection to {tcpIdentifier.IPAddress_2}:{tcpIdentifier.Port_2} finished");
                             }
+                            break;
+
+                        case (byte)TCP_FLAG.FIN | (byte)TCP_FLAG.ACK:
+                            Console.WriteLine("FIN-ACK Packet sent, SEQ number: " + tcpHeader.GetSeqNumber());
                             break;
                     }
                 }
